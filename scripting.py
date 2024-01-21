@@ -165,7 +165,7 @@ def getlinks_t(url, list_int, list_ext, thresh, set_links):
             
             for link_int in list_int[recur_level - 2]['html']: #going through the html list in the last recursive step
 
-                with requests.get(url, stream=True) as html_req:
+                with requests.get(link_int, stream=True) as html_req:
 
                     soup = BeautifulSoup(html_req.text, "lxml")
 
@@ -206,23 +206,24 @@ def getlinks_t(url, list_int, list_ext, thresh, set_links):
 
     return set_links, list_int, list_ext, recur_level
 
-'''def getlinks_no_thresh(url, list_int, list_ext, set_links):
+def getlinks_no_thresh(url, list_int, list_ext, set_links):
 
     
     list_ext =[[]]
     list_int = [[]]
     
-    flag = 1
+    flag = 0
 
     # list_src_master simply has both int and ext just for the lambda
 
     while True:
         
-        recur_level = 1
+        recur_level = 2
+        
 
-        if flag == 1:
+        
             # using 'with block' to close connection automatically
-
+        if flag == 0:
             with requests.get(url, stream=True) as html_req:
 
                 soup = BeautifulSoup(html_req.text, "lxml")
@@ -249,86 +250,90 @@ def getlinks_t(url, list_int, list_ext, thresh, set_links):
 
                 for line in soup.find_all(list_src_tags):
 
-                    # if the link has the domain in it, it will return a 1, the index of int list
+                        link = line.get("src")
 
-                    link = line.get("src")
+                        # putting a contraint on the number of links to not overload web server and to reduce processing time
 
-                    # putting a contraint on the number of links to not overload web server and to reduce processing time
+                        if link!= None and link not in set_links and len(list_int[0]) <40:
+                            if url in link:
+                                list_int[0].append(link)
+                                set_links.update(link)
 
-                    if link!= None and link not in set_links and len(list_int[0]) <40:
-                        if url in link:
-                            list_int[0].append(link)
-                            set_links.update(link)
-
-                        else:
-                            list_ext[0].append(link)
-                            set_links.update(link)
-                
-                # sorts the links into dictionaries
+                            else:
+                                list_ext[0].append(link)
+                                set_links.update(link)
+                    
+                    # sorts the links into dictionaries
 
                 list_int[0] : dict = sorter(list_int[0])
                 list_ext[0] : dict = sorter(list_ext[0])
                 time.sleep(0.5)
+                flag  = 1
+                list_int.append([])
+                list_ext.append([])
+        
+        else:
+            while len(list_int[recur_level - 2]['html']) != 0:
+
+                # only selecting the html tags
+                
+                for link_int in list_int[recur_level - 2]['html']: #going through the html list in the last recursive step
+
+                    with requests.get(link_int, stream=True) as html_req:
+
+                        soup = BeautifulSoup(html_req.text, "lxml")
+
+
+                        for line in soup.find_all('a'):
+                            link = line.get("href")
+                                
+                            if link!= None and link not in set_links and len(list_int[recur_level -1]) <20:
+                                if url in link:
+                                    list_int[recur_level -1].append(link)
+                                    set_links.update(link)
+                                else:
+                                    list_ext[recur_level -1].append(link)
+                                    set_links.update(link)
+
+                        for line in soup.find_all(list_src_tags):
+                            link = line.get("src")
+                                
+                            if link!= None and link not in set_links and len(list_int[recur_level -1]) <40:
+                                if url in link:
+                                    list_int[recur_level -1].append(link)
+                                    set_links.update(link)
+                                else:
+                                    list_ext[recur_level -1].append(link)
+                                    set_links.update(link)
+
+                list_int[recur_level - 1] : dict = sorter(list_int[recur_level - 1])
+                list_ext[recur_level -1] : dict = sorter(list_ext[recur_level -1])
+                time.sleep(0.5)
+                recur_level +=1
+                list_int.append([])
+                list_ext.append([])
+                if recur_level > 3:
+                     flag = 100
+                     break
+            else: 
+                # exited out of the loop properly, so while-else statement gets executed.
                 break
-		
-        print(list_int[recur_level - 2]['html'])
-        input("wait what is THAT")
-    while len(list_int[recur_level - 2]['html']) != 0:
-
-        # only selecting the html tags
-        
-        for link_int in list_int[recur_level - 2]['html']: #going through the html list in the last recursive step
-
-            with requests.get(url, stream=True) as html_req:
-
-                soup = BeautifulSoup(html_req.text, "lxml")
-
-
-                for line in soup.find_all('a'):
-                    link = line.get("href")
-                        
-                    if link!= None and link not in set_links and len(list_int[recur_level -1]) <20:
-                        if url in link:
-                            list_int[recur_level -1].append(link)
-                            set_links.update(link)
-                        else:
-                            list_ext[recur_level -1].append(link)
-                            set_links.update(link)
-
-                for line in soup.find_all(list_src_tags):
-                    link = line.get("src")
-                        
-                    if link!= None and link not in set_links and len(list_int[recur_level -1]) <40:
-                        if url in link:
-                            list_int[recur_level -1].append(link)
-                            set_links.update(link)
-                        else:
-                            list_ext[recur_level -1].append(link)
-                            set_links.update(link)
-
-        list_int[recur_level - 1] : dict = sorter(list_int[recur_level - 1])
-        list_ext[recur_level -1] : dict = sorter(list_ext[recur_level -1])
-        time.sleep(0.5)
-        recur_level += 1
-
-    else:
-
-        # in case there are no more html pages to reference, but recursive threshold hasn't been reached
-
-        print(f'breaking at recursion level {recur_level} due to inavailabilty of html pages')
-        
+            if flag == 100:
+                 break
 
     # returning a set which has all links
-        
+            
 
     return set_links, list_int, list_ext, recur_level
-'''
+
 
 set_links = {url}
 if args.thresh == None:
     set_links, list_int, list_ext, main_recur_level = getlinks_no_thresh(url, list_href_int, list_href_ext, set_links)
+    main_recur_level = main_recur_level -1
 else:
-	set_links, list_int, list_ext, main_recur_level = getlinks_t(url, list_href_int, list_href_ext, thresh, set_links)
+    set_links, list_int, list_ext, main_recur_level = getlinks_t(url, list_href_int, list_href_ext, thresh, set_links)
+
 
 
 if args.output:
