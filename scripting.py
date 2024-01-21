@@ -4,6 +4,13 @@ import requests
 import time
 import csv
 
+
+global max_recursion_level 
+global max_no_of_links
+
+max_recursion_level = 3
+max_no_of_links = 20
+
 parser = ArgumentParser()
 
 parser.add_argument('-u', '--url', help = "Arguement for the URL", required= True)
@@ -16,6 +23,10 @@ args :Namespace = parser.parse_args()
 
 url : str = args.url
 thresh : int = args.thresh
+
+if thresh != None and thresh < 0:
+    print("Invalid choice for threshold. Program exiting.")
+    exit()
 
 def create_list(empty_list, thresh):
     for i in range(thresh):
@@ -76,37 +87,23 @@ def list_print(list_, recur_level):
             print("Moving onto next level...")
         time.sleep(0.5)
 
-
-
-
-
-list_src_int = []
-list_src_ext = []
-list_href_int = []
-list_href_ext = []
 list_int = []
 list_ext = []
 
-# list_src_int - has dictionaries of src links, index + 1 is the level of recurrsion, domain same as url
-# list_src_ext - has dictionaries of src links, index + ! gives the level of recursion, domain same as url
- 
-
-list_src_tags = ['script', 'img', 'audio', 'embed', 'iframe', 'form', 'video', 'track', 'source', 'input']
+# list_int - has dictionaries of all links, index + 1 is the level of recurrsion, domain same as url
+# list_ext - has dictionaries of all links, index + 1 gives the level of recursion, domain different from url
 
 
 # function called when the threshold is mentioned
 
 def getlinks_t(url, list_int, list_ext, thresh, set_links):
 
+    # creating a list which has empty lists in which links will be put
     
     create_list(list_ext, thresh)
     create_list(list_int, thresh)
 
-    # list_src_master simply has both int and ext just for the lambda
-
     for recur_level in range(1, thresh + 1):
-
-        lsize_bool = len(list_int[recur_level -1]) <= 20
 
         if recur_level == 1:
 
@@ -115,7 +112,6 @@ def getlinks_t(url, list_int, list_ext, thresh, set_links):
             with requests.get(url, stream=True) as html_req:
 
                 soup = BeautifulSoup(html_req.text, "lxml")
-
                 for line in soup.find_all('a'):
 
                     # if the link has the domain in it, it will return a 1, the index of int list
@@ -124,17 +120,19 @@ def getlinks_t(url, list_int, list_ext, thresh, set_links):
 
                     # putting a contraint on the number of links to not overload web server and to reduce processing time
 
-                    if link!= None and link not in set_links and len(list_int[0]) <20:
+                    if link!= None and link not in set_links and len(list_int[0]) < max_no_of_links:
                         if url in link:
                             list_int[0].append(link)
-                            set_links.update(link)
+                            # set_links has all the links, so in all cases, all links are added here.
+                            set_links.add(link)
 
                         else:
                             list_ext[0].append(link)
-                            set_links.update(link)
+                            set_links.add(link)
 
+                # list_src_tags has all the potential tags which can have src tag 
+                            
                 list_src_tags = ['script', 'img', 'audio', 'embed', 'iframe', 'form', 'video', 'track', 'source', 'input']
-
                 for line in soup.find_all(list_src_tags):
 
                     # if the link has the domain in it, it will return a 1, the index of int list
@@ -143,16 +141,16 @@ def getlinks_t(url, list_int, list_ext, thresh, set_links):
 
                     # putting a contraint on the number of links to not overload web server and to reduce processing time
 
-                    if link!= None and link not in set_links and len(list_int[0]) <40:
+                    if link!= None and link not in set_links and len(list_int[0]) < 2 * max_no_of_links:
                         if url in link:
                             list_int[0].append(link)
-                            set_links.update(link)
+                            set_links.add(link)
 
                         else:
                             list_ext[0].append(link)
-                            set_links.update(link)
+                            set_links.add(link)
                 
-                # sorts the links into dictionaries
+                # sorts the links into dictionaries of sets
 
                 list_int[0] : dict = sorter(list_int[0])
                 list_ext[0] : dict = sorter(list_ext[0])
@@ -169,28 +167,27 @@ def getlinks_t(url, list_int, list_ext, thresh, set_links):
 
                     soup = BeautifulSoup(html_req.text, "lxml")
 
-
                     for line in soup.find_all('a'):
                         link = line.get("href")
                         
-                        if link!= None and link not in set_links and len(list_int[recur_level -1]) <20:
+                        if link!= None and link not in set_links and len(list_int[recur_level -1]) < max_no_of_links:
                             if url in link:
                                 list_int[recur_level -1].append(link)
-                                set_links.update(link)
+                                set_links.add(link)
                             else:
                                 list_ext[recur_level -1].append(link)
-                                set_links.update(link)
+                                set_links.add(link)
 
                     for line in soup.find_all(list_src_tags):
                         link = line.get("src")
                         
-                        if link!= None and link not in set_links and len(list_int[recur_level -1]) <40:
+                        if link!= None and link not in set_links and len(list_int[recur_level -1]) < max_no_of_links:
                             if url in link:
                                 list_int[recur_level -1].append(link)
-                                set_links.update(link)
+                                set_links.add(link)
                             else:
                                 list_ext[recur_level -1].append(link)
-                                set_links.update(link)
+                                set_links.add(link)
 
             list_int[recur_level - 1] : dict = sorter(list_int[recur_level - 1])
             list_ext[recur_level -1] : dict = sorter(list_ext[recur_level -1])
@@ -212,17 +209,17 @@ def getlinks_no_thresh(url, list_int, list_ext, set_links):
     list_ext =[[]]
     list_int = [[]]
     
+    # flag as a variable to check where the flow of the program is
+
     flag = 0
 
-    # list_src_master simply has both int and ext just for the lambda
 
     while True:
         
         recur_level = 2
         
+        # using 'with block' to close connection automatically to avoid inefficiencies
 
-        
-            # using 'with block' to close connection automatically
         if flag == 0:
             with requests.get(url, stream=True) as html_req:
 
@@ -230,20 +227,18 @@ def getlinks_no_thresh(url, list_int, list_ext, set_links):
 
                 for line in soup.find_all('a'):
 
-                    # if the link has the domain in it, it will return a 1, the index of int list
-
                     link = line.get("href")
 
                     # putting a contraint on the number of links to not overload web server and to reduce processing time
 
-                    if link!= None and link not in set_links and len(list_int[0]) <20:
+                    if link!= None and link not in set_links and len(list_int[0]) <max_no_of_links:
                         if url in link:
                             list_int[0].append(link)
-                            set_links.update(link)
+                            set_links.add(link)
 
                         else:
                             list_ext[0].append(link)
-                            set_links.update(link)
+                            set_links.add(link)
                         flag = 0
 
                 list_src_tags = ['script', 'img', 'audio', 'embed', 'iframe', 'form', 'video', 'track', 'source', 'input']
@@ -252,18 +247,14 @@ def getlinks_no_thresh(url, list_int, list_ext, set_links):
 
                         link = line.get("src")
 
-                        # putting a contraint on the number of links to not overload web server and to reduce processing time
-
                         if link!= None and link not in set_links and len(list_int[0]) <40:
                             if url in link:
                                 list_int[0].append(link)
-                                set_links.update(link)
+                                set_links.add(link)
 
                             else:
                                 list_ext[0].append(link)
-                                set_links.update(link)
-                    
-                    # sorts the links into dictionaries
+                                set_links.add(link)
 
                 list_int[0] : dict = sorter(list_int[0])
                 list_ext[0] : dict = sorter(list_ext[0])
@@ -274,10 +265,8 @@ def getlinks_no_thresh(url, list_int, list_ext, set_links):
         
         else:
             while len(list_int[recur_level - 2]['html']) != 0:
-
-                # only selecting the html tags
                 
-                for link_int in list_int[recur_level - 2]['html']: #going through the html list in the last recursive step
+                for link_int in list_int[recur_level - 2]['html']: 
 
                     with requests.get(link_int, stream=True) as html_req:
 
@@ -287,13 +276,13 @@ def getlinks_no_thresh(url, list_int, list_ext, set_links):
                         for line in soup.find_all('a'):
                             link = line.get("href")
                                 
-                            if link!= None and link not in set_links and len(list_int[recur_level -1]) <20:
+                            if link!= None and link not in set_links and len(list_int[recur_level -1]) <max_no_of_links:
                                 if url in link:
                                     list_int[recur_level -1].append(link)
-                                    set_links.update(link)
+                                    set_links.add(link)
                                 else:
                                     list_ext[recur_level -1].append(link)
-                                    set_links.update(link)
+                                    set_links.add(link)
 
                         for line in soup.find_all(list_src_tags):
                             link = line.get("src")
@@ -301,10 +290,10 @@ def getlinks_no_thresh(url, list_int, list_ext, set_links):
                             if link!= None and link not in set_links and len(list_int[recur_level -1]) <40:
                                 if url in link:
                                     list_int[recur_level -1].append(link)
-                                    set_links.update(link)
+                                    set_links.add(link)
                                 else:
                                     list_ext[recur_level -1].append(link)
-                                    set_links.update(link)
+                                    set_links.add(link)
 
                 list_int[recur_level - 1] : dict = sorter(list_int[recur_level - 1])
                 list_ext[recur_level -1] : dict = sorter(list_ext[recur_level -1])
@@ -312,13 +301,14 @@ def getlinks_no_thresh(url, list_int, list_ext, set_links):
                 recur_level +=1
                 list_int.append([])
                 list_ext.append([])
-                if recur_level > 3:
+                if recur_level > max_recursion_level:
                      flag = 100
                      break
             else: 
                 # exited out of the loop properly, so while-else statement gets executed.
                 break
             if flag == 100:
+                 # to break to limit the recursive limit to avoid server overload
                  break
 
     # returning a set which has all links
@@ -329,10 +319,13 @@ def getlinks_no_thresh(url, list_int, list_ext, set_links):
 
 set_links = {url}
 if args.thresh == None:
-    set_links, list_int, list_ext, main_recur_level = getlinks_no_thresh(url, list_href_int, list_href_ext, set_links)
-    main_recur_level = main_recur_level -1
+    print("Fetching all the links...")
+    set_links, list_int_final, list_ext_final, main_recur_level = getlinks_no_thresh(url, list_int, list_ext, set_links)
+    main_recur_level = main_recur_level - 1
+    no_threshold = True
 else:
-    set_links, list_int, list_ext, main_recur_level = getlinks_t(url, list_href_int, list_href_ext, thresh, set_links)
+    print("Fetching all the links...")
+    set_links, list_int_final, list_ext_final, main_recur_level = getlinks_t(url, list_int, list_ext, thresh, set_links)
 
 
 
@@ -341,7 +334,7 @@ if args.output:
 		serial_no = 1
 		writer_obj = csv.writer(file_obj)
 		writer_obj.writerow(["Sno.", 'Link', 'Recursive Level', 'internal/external', "Link Type"])
-		for subdict_link in list_int:
+		for subdict_link in list_int_final:
 			recur_level = 1
 			for link_type in subdict_link.keys():
 				temp_list = list(subdict_link[link_type])
@@ -350,7 +343,7 @@ if args.output:
 					serial_no +=1
 			recur_level += 1
             
-		for subdict_link in list_ext:
+		for subdict_link in list_ext_final:
 			recur_level = 1
 			for link_type in subdict_link.keys():
 				temp_list = list(subdict_link[link_type])
@@ -359,7 +352,10 @@ if args.output:
 					serial_no +=1
 			recur_level += 1
 else:
-	list_print(list_int, main_recur_level)
-	time.sleep(2)
-	list_print(list_ext, main_recur_level) 
+    if no_threshold:
+        print(set_links)
+    else:
+        list_print(list_int, main_recur_level)
+        time.sleep(2)
+        list_print(list_ext, main_recur_level) 
 			
